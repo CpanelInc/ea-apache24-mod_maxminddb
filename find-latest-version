@@ -1,0 +1,63 @@
+#!/usr/local/cpanel/3rdparty/bin/perl
+# cpanel - find-latest-version                  Copyright(c) 2019 cPanel, L.L.C.
+#                                                           All rights Reserved.
+# copyright@cpanel.net                                         http://cpanel.net
+# This code is subject to the cPanel license. Unauthorized copying is prohibited
+
+package mod_maxminddb::find_latest_version;
+
+use strict;
+use warnings;
+
+use lib "../ea-tools/lib/ea4_tool";    # assumes ea-tools is checked out next to this repo
+use ea4_tool::util ();
+
+ea4_tool::util::find_latest_version( \&_get_required, \&_add_sum ) if !caller();
+
+###############
+#### helpers ##
+###############
+
+sub _get_required {
+    my ($http) = @_;
+
+    my $res = $http->get("https://api.github.com/repos/maxmind/mod_maxminddb/releases");
+    if ( !$res->{success} ) {
+        die "Could not GET Mod_maxminddbinfo from github ($res->{status} $res->{reason})\n\t Throttled? `curl -I https://api.github.com/rate_limit 2>&1 | grep ^X-RateLimit`\n";
+    }
+
+    my ($version) = sort { ea4_tool::util::numerical_only_version_compare( $a, $b ); } map { $_->{tag_name} } grep { $_->{tag_name} =~ m/^1\.2/ } @{ ea4_tool::util::json2ref( $res->{content} ) };
+    die "Could not determine version from github\n" if !$version;
+
+    my $name = "$version.tar.gz";
+    my $url  = "https://github.com/maxmind/mod_maxminddb/archive/$name";
+    $version =~ s/^v//;
+
+    return ( $version, $url, $name );
+}
+
+sub _add_sum {
+    my ( $http, $hr ) = @_;
+
+    # Optional: Set $hr->{tarball}{sum}{hex} and $hr->{tarball}{sum}{type} (sha256, sha1, md5, anything Digest.pm can handle)
+    #           die if there is a problem determining either of those values
+    # otherwise this is a no-op
+
+    return;
+}
+
+__END__
+
+=encoding utf-8
+
+=head1 README
+
+We can add checksum support if github releases had that information which isn’t available via:
+
+=over
+
+=item API call L<https://developer.github.com/v3/repos/releases/#get-the-latest-release>
+
+=item web view L<https://github.com/owasp-modsecurity/ModSecurity/releases>
+
+=back
